@@ -1,3 +1,4 @@
+import 'package:dartz/dartz.dart';
 import 'package:flutter/foundation.dart';
 
 import 'post_service.dart';
@@ -14,28 +15,34 @@ class PostChangeNotifier extends ChangeNotifier {
     notifyListeners();
   }
 
-  Post _post;
-  Post get post => _post;
-  void _setPost(Post post) {
+  Either<Failure, Post> _post;
+  Either<Failure, Post> get post => _post;
+  void _setPost(Either<Failure, Post> post) {
     _post = post;
-    notifyListeners();
-  }
-
-  Failure _failure;
-  Failure get failure => _failure;
-  void _setFailure(Failure failure) {
-    _failure = failure;
     notifyListeners();
   }
 
   void getOnePost() async {
     _setState(NotifierState.loading);
-    try {
-      final post = await _postService.getOnePost();
-      _setPost(post);
-    } on Failure catch (f) {
-      _setFailure(f);
-    }
+    await Task(() => _postService.getOnePost())
+        .attempt()
+        .mapLeftToFailure()
+        .run()
+        .then((value) => _setPost(value));
     _setState(NotifierState.loaded);
+  }
+}
+
+extension TaskX<T extends Either<Object, U>, U> on Task<T> {
+  Task<Either<Failure, U>> mapLeftToFailure() {
+    return this.map(
+      (either) => either.leftMap((obj) {
+        try {
+          return obj as Failure;
+        } catch (e) {
+          throw obj;
+        }
+      }),
+    );
   }
 }
